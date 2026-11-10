@@ -1,0 +1,13 @@
+numpy
+pandas
+pyarrow
+scipy
+scikit-learn
+matplotlib
+seaborn
+jupyterlab
+ipykernel
+ipywidgets
+pytest
+kagglehub
+# torch==2.2.2  # last pip release for Intel macOS; requires Python <=3.12 and numpy<2
