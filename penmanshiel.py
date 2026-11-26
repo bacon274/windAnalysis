@@ -110,6 +110,49 @@ STOP_GROUPS = {
 }
 TURBINE_FAULT_CATEGORIES = STOP_GROUPS["Turbine fault"]
 
+# Vote-based confidence of turbine-fault stops (eda_penmanshiel.ipynb, "A simple vote-based confidence score"):
+# -1 if at least FARM_MIN_OTHERS other turbines stopped within FARM_WINDOW, +1 if a manual/service stop follows on
+# the same turbine within SERVICE_DAYS, +1 if the row has an operator comment. Score -1 -> Low, 0 -> Medium, >= 1 -> High.
+FARM_WINDOW = pd.Timedelta(minutes=10)
+FARM_MIN_OTHERS = 3
+SERVICE_DAYS = 7
+CONFIDENCE_LEVELS = {1: "Low", 2: "Medium", 3: "High"}
+
+
+def fault_stop_confidence(status: pd.DataFrame, start=COMMERCIAL_OPERATION) -> pd.DataFrame:
+    """Turbine-fault Stop rows from `start` with their votes, score, confidence rank (1-3) and level (Low/Medium/High).
+
+    Farm-wide coincidence counts Stops of any class on other turbines; service follow-up counts Stops in the
+    "Manual / service" class. The index is that of `status`.
+    """
+    st = status[status["status"] == "Stop"]
+    if start is not None:
+        st = st[st["timestamp_start"] >= pd.Timestamp(start)]
+    cat = st["service_contract_category"].astype(str)
+    fs = st[cat.isin(TURBINE_FAULT_CATEGORIES)].copy()
+
+    order = st.sort_values("timestamp_start")
+    ts, tid = order["timestamp_start"].to_numpy(), order["turbine_id"].to_numpy()
+    lo = np.searchsorted(ts, (fs["timestamp_start"] - FARM_WINDOW).to_numpy())
+    hi = np.searchsorted(ts, (fs["timestamp_start"] + FARM_WINDOW).to_numpy(), "right")
+    fs["other_turbines"] = [len(set(tid[a:b]) - {t}) for a, b, t in zip(lo, hi, fs["turbine_id"])]
+
+    svc = st[cat.isin(STOP_GROUPS["Manual / service"])]
+    fs["service_after"] = False
+    for t, idx in fs.groupby("turbine_id").groups.items():
+        s = np.sort(svc.loc[svc["turbine_id"] == t, "timestamp_start"].to_numpy())
+        times = fs.loc[idx, "timestamp_start"].to_numpy()
+        fs.loc[idx, "service_after"] = (np.searchsorted(s, times + np.timedelta64(SERVICE_DAYS, "D"), "right")
+                                        > np.searchsorted(s, times))
+
+    fs["farm_vote"] = -(fs["other_turbines"] >= FARM_MIN_OTHERS).astype(int)
+    fs["service_vote"] = fs["service_after"].astype(int)
+    fs["comment_vote"] = fs["comment"].notna().astype(int)
+    fs["vote_score"] = fs["farm_vote"] + fs["service_vote"] + fs["comment_vote"]
+    fs["confidence_rank"] = np.select([fs["vote_score"] <= -1, fs["vote_score"] == 0], [1, 2], 3)
+    fs["confidence"] = fs["confidence_rank"].map(CONFIDENCE_LEVELS)
+    return fs
+
 
 # Each flag is a rule on timed status rows (rows with an end time). A 10-minute slot gets the flag if any
 # matching event overlaps it.
