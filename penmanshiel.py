@@ -94,6 +94,23 @@ POWER_REDUCED_CODES = {9000, 3220}  # P output externally reduced; Reduced power
 # heating/fans, pitch battery charge cycles. They can last weeks, so excluding them costs a lot of data.
 BENIGN_WARNING_CODES = {5000, 7324, 8400, 7057, 4607, 716, 717, 718}
 
+# Stop events grouped by service-contract category (as exported by Greenbyte). "Turbine fault" is the class used
+# for fault labels; the others are deliberate, grid-side or environmental stops.
+STOP_GROUPS = {
+    "Turbine fault": ["Generator and Converter errors (20)", "Pitch errors (18)", "Mechanical error (23)",
+                      "Electrical error (24)", "Sensor error (21)", "Temperature error (22)",
+                      "Controller error of the WP3100 (16)", "Repeated error  (25)", "Safety chain (13)",
+                      "Safety stop of WEC (15)", "Emergency stop switch (Converter) (12)",
+                      "Emergency stop switch (Nacelle) (11)", "WEC Shutdown (1)", "Overspeed (14)"],
+    "Manual / service": ["Manual stop (service)  (9)"],
+    "Remote / park stop": ["Remote stop (30)"],
+    "Grid": ["External stop (grid) (4)"],
+    "Environment": ["External stop (low wind speed)  (5)", "External stop (climate) (6)"],
+    "Operating state": ["Operating states  (28)", "Warnings (27)"],
+}
+TURBINE_FAULT_CATEGORIES = STOP_GROUPS["Turbine fault"]
+
+
 # Each flag is a rule on timed status rows (rows with an end time). A 10-minute slot gets the flag if any
 # matching event overlaps it.
 STATUS_FLAG_RULES = {
