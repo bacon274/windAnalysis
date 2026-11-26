@@ -44,4 +44,22 @@ As a test bed, the code should make it easy to run several fault detection algor
 - evaluation (shared metrics, so results across algorithms are comparable)
 - plotting of signals, detections, and results
 
+### Penmanshiel (second dataset)
+
+14 Senvion MM82 turbines (no T03), Greenbyte 10-minute SCADA + status logs, 2016-06 to 2023-12 (T01-T10 have no data for 2023-01). Raw CSVs are downloaded manually into `data/Penmanshiel/Penmanshiel_SCADA_*/`. No fault labels; the status log is the event record.
+
+```bash
+python penmanshiel_process.py                 # -> data/Penmanshiel/scada/<turbine_id>.parquet, status/<turbine_id>.parquet,
+                                              #    feature_description.parquet, turbines.parquet (~20 min)
+```
+
+Columns are snake_case (`wind_speed_std`); `feature_description.parquet` maps them to the original labels and units. Quirks (duplicate rows in the 2023-02 export, status rows without an end time) are documented in the script's docstring.
+
+- Gearbox temperatures (axle bearings, gear oil, gear-oil inlet), pitch angle and power setpoint only exist from 2018-06; the SCADA curtailment-loss columns are ~always 0 (use the status log / setpoint instead).
+- `penmanshiel.py`: loading, status-log and SCADA flags, `healthy_mask`, time split helper, plain-English signal labels.
+- `detectors.py`: dataset-independent detectors (`PCAMonitor` with SPE/T², `persistence`, `cusum`, `page_hinkley`, `classify_change`).
+- `eda_penmanshiel.ipynb` (static data, coverage, status/event logs) and `analysis_penmanshiel.ipynb` (healthy mask, normal-behaviour residuals, PCA, turbine grouping, peer-residual drift, injected-fault validation; ~4 min, writes `data/Penmanshiel/analysis/`).
+- `population_form_penmanshiel.ipynb`: GP population-form explorer after Bull et al. 2021 (fixed, rolling 12-month and same-window leave-one-out forms, moving-window novelty). Reads `analysis/residuals.parquet` (residuals, flags, healthy, period), so run the analysis notebook first; starts in ~40 s.
+- Daily residual series are strongly autocorrelated: calibrate CUSUM/PH/SPE thresholds to a false-alarm rate on reference data rather than using textbook values.
+
 `data/` and `.venv/` are git-ignored.
